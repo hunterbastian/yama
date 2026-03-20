@@ -2,7 +2,7 @@ extends Node3D
 
 const GRID_SIZE := 128
 const TERRAIN_SIZE := 120.0
-const HEIGHT_SCALE := 12.0
+const HEIGHT_SCALE := 18.0
 const ISLAND_RADIUS := 55.0
 const NOISE_SCALE := 0.05
 
@@ -38,8 +38,10 @@ func _setup_noise() -> void:
 func _sample_height(wx: float, wz: float) -> float:
 	var px := wx * NOISE_SCALE + _current_seed
 	var pz := wz * NOISE_SCALE + _current_seed
-	var h := _noise.get_noise_2d(px, pz) * 0.6 \
-	       + _noise2.get_noise_2d(px * 2.0 + 43.0, pz * 2.0 + 17.0) * 0.4
+	# 3 octaves — must match shader exactly
+	var h := _noise.get_noise_2d(px, pz) * 0.5 \
+	       + _noise2.get_noise_2d(px * 2.0 + 43.0, pz * 2.0 + 17.0) * 0.3 \
+	       + _noise.get_noise_2d(px * 4.0 + 91.0, pz * 4.0 + 53.0) * 0.2
 	var dist := sqrt(wx * wx + wz * wz) / ISLAND_RADIUS
 	var falloff := 1.0 - smoothstep(0.5, 1.0, dist)
 	return h * HEIGHT_SCALE * falloff

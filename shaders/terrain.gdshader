@@ -1,7 +1,7 @@
 shader_type spatial;
 
 uniform float seed : hint_range(0.0, 1000.0) = 0.0;
-uniform float height_scale : hint_range(0.0, 30.0) = 12.0;
+uniform float height_scale : hint_range(0.0, 30.0) = 18.0;
 uniform float noise_scale : hint_range(0.01, 0.2) = 0.05;
 uniform float island_radius : hint_range(10.0, 100.0) = 55.0;
 
@@ -41,7 +41,8 @@ float snoise(vec2 v) {
 float terrain_height(vec2 pos) {
 	// Seed offsets sample position — CPU code must mirror this exactly
 	vec2 p = pos * noise_scale + vec2(seed, seed);
-	float h = snoise(p) * 0.6 + snoise(p * 2.0 + vec2(43.0, 17.0)) * 0.4;
+	// 3 octaves: broad hills + medium ridges + small bumps
+	float h = snoise(p) * 0.5 + snoise(p * 2.0 + vec2(43.0, 17.0)) * 0.3 + snoise(p * 4.0 + vec2(91.0, 53.0)) * 0.2;
 
 	// Island falloff — distance from center fades to 0
 	float dist = length(pos) / island_radius;

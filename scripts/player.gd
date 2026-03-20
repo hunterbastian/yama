@@ -17,7 +17,12 @@ const APEX_THRESHOLD := 2.0
 const APEX_GRAVITY_MULT := 0.4
 
 @onready var camera_pivot: Node3D = $CameraPivot
-@onready var mesh: MeshInstance3D = $MeshInstance3D
+@onready var model: Node3D = $CharacterModel
+@onready var left_leg: MeshInstance3D = $CharacterModel/LeftLeg
+@onready var right_leg: MeshInstance3D = $CharacterModel/RightLeg
+@onready var body: MeshInstance3D = $CharacterModel/Body
+
+var _walk_time := 0.0
 
 func _physics_process(delta: float) -> void:
 	# --- Input ---
@@ -43,9 +48,9 @@ func _physics_process(delta: float) -> void:
 	if wish_dir.length() > 0.0:
 		velocity.x = move_toward(velocity.x, wish_dir.x * speed, acceleration * delta * speed)
 		velocity.z = move_toward(velocity.z, wish_dir.z * speed, acceleration * delta * speed)
-		# Rotate character to face movement direction
+		# Rotate model to face movement direction (not the body — that would spin the camera)
 		var target_angle := atan2(wish_dir.x, wish_dir.z)
-		rotation.y = lerp_angle(rotation.y, target_angle, rotation_speed * delta)
+		model.rotation.y = lerp_angle(model.rotation.y, target_angle, rotation_speed * delta)
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, friction * delta * speed)
 		velocity.z = move_toward(velocity.z, 0.0, friction * delta * speed)
@@ -64,3 +69,21 @@ func _physics_process(delta: float) -> void:
 		_coyote_timer = 0.0
 
 	move_and_slide()
+
+	# --- Walk animation ---
+	var h_speed := Vector2(velocity.x, velocity.z).length()
+	if h_speed > 0.5 and is_on_floor():
+		var anim_speed := 8.0 if sprinting else 5.0
+		_walk_time += delta * anim_speed
+		var swing := sin(_walk_time) * 0.4
+		# Legs swing forward/backward
+		left_leg.rotation.x = swing
+		right_leg.rotation.x = -swing
+		# Subtle body bob
+		body.position.y = 0.45 + abs(sin(_walk_time * 2.0)) * 0.03
+	else:
+		# Return to idle
+		_walk_time = 0.0
+		left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, 8.0 * delta)
+		right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, 8.0 * delta)
+		body.position.y = lerp(body.position.y, 0.45, 8.0 * delta)

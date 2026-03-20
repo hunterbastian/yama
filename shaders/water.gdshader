@@ -5,7 +5,7 @@ uniform vec4 water_color : source_color = vec4(0.66, 0.85, 0.92, 0.8);
 uniform vec4 deep_color : source_color = vec4(0.35, 0.55, 0.70, 0.95);
 uniform sampler2D depth_texture : hint_depth_texture;
 uniform float wave_speed : hint_range(0.0, 2.0) = 0.4;
-uniform float wave_height : hint_range(0.0, 1.0) = 0.15;
+uniform float wave_height : hint_range(0.0, 1.0) = 0.03;
 
 void vertex() {
 	float wave = sin(VERTEX.x * 0.5 + TIME * wave_speed) * cos(VERTEX.z * 0.3 + TIME * wave_speed * 0.7);

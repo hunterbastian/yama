@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/camera.gd" id="2"]
@@ -7,12 +7,22 @@
 radius = 0.3
 height = 1.0
 
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_player"]
-radius = 0.3
-height = 1.0
+[sub_resource type="StandardMaterial3D" id="Mat_body"]
+albedo_color = Color(0.82, 0.90, 0.87, 1.0)
 
-[sub_resource type="StandardMaterial3D" id="Material_player"]
-albedo_color = Color(0.85, 0.93, 0.9, 1.0)
+[sub_resource type="StandardMaterial3D" id="Mat_head"]
+albedo_color = Color(0.92, 0.95, 0.93, 1.0)
+
+[sub_resource type="StandardMaterial3D" id="Mat_legs"]
+albedo_color = Color(0.45, 0.58, 0.52, 1.0)
+
+[sub_resource type="CapsuleMesh" id="Mesh_body"]
+radius = 0.2
+height = 0.5
+
+[sub_resource type="SphereMesh" id="Mesh_head"]
+radius = 0.22
+height = 0.44
 
 [node name="Player" type="CharacterBody3D"]
 script = ExtResource("1")
@@ -21,10 +31,27 @@ script = ExtResource("1")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
 shape = SubResource("CapsuleShape_player")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
-mesh = SubResource("CapsuleMesh_player")
-surface_material_override/0 = SubResource("Material_player")
+[node name="CharacterModel" type="Node3D" parent="."]
+
+[node name="Body" type="MeshInstance3D" parent="CharacterModel"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+mesh = SubResource("Mesh_body")
+surface_material_override/0 = SubResource("Mat_body")
+
+[node name="Head" type="MeshInstance3D" parent="CharacterModel"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+mesh = SubResource("Mesh_head")
+surface_material_override/0 = SubResource("Mat_head")
+
+[node name="LeftLeg" type="MeshInstance3D" parent="CharacterModel"]
+transform = Transform3D(0.4, 0, 0, 0, 0.5, 0, 0, 0, 0.4, -0.1, 0.12, 0)
+mesh = SubResource("Mesh_body")
+surface_material_override/0 = SubResource("Mat_legs")
+
+[node name="RightLeg" type="MeshInstance3D" parent="CharacterModel"]
+transform = Transform3D(0.4, 0, 0, 0, 0.5, 0, 0, 0, 0.4, 0.1, 0.12, 0)
+mesh = SubResource("Mesh_body")
+surface_material_override/0 = SubResource("Mat_legs")
 
 [node name="CameraPivot" type="Node3D" parent="."]
 script = ExtResource("2")
