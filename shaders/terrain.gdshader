@@ -93,5 +93,17 @@ void fragment() {
 	float variation = snoise(v_world_pos.xz * 0.3) * 0.04;
 	col += vec3(variation, variation * 0.8, variation * 0.6);
 
+	// Rim light — bright silhouette edges
+	float rim = 1.0 - max(dot(NORMAL, VIEW), 0.0);
+	rim = smoothstep(0.5, 1.0, rim);
+	EMISSION = vec3(0.85, 0.93, 0.95) * rim * 0.3;
+
 	ALBEDO = col;
+}
+
+void light() {
+	// Cel-shading: quantize into 3 discrete light bands
+	float NdotL = max(dot(NORMAL, LIGHT), 0.0);
+	float cel = floor(NdotL * 3.0 + 0.5) / 3.0;
+	DIFFUSE_LIGHT += ATTENUATION * LIGHT_COLOR * cel;
 }
