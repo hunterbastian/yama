@@ -1,0 +1,21 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Shader" path="res://shaders/water.gdshader" id="1"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_water"]
+size = Vector2(300, 300)
+subdivide_width = 64
+subdivide_depth = 64
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_water"]
+render_priority = -1
+shader = ExtResource("1")
+shader_parameter/water_color = Color(0.66, 0.85, 0.92, 0.8)
+shader_parameter/deep_color = Color(0.35, 0.55, 0.7, 0.95)
+shader_parameter/wave_speed = 0.4
+shader_parameter/wave_height = 0.15
+
+[node name="Water" type="MeshInstance3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.2, 0)
+material_override = SubResource("ShaderMaterial_water")
+mesh = SubResource("PlaneMesh_water")
