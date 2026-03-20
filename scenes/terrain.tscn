@@ -1,0 +1,23 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/terrain.gd" id="1"]
+[ext_resource type="Shader" path="res://shaders/terrain.gdshader" id="2"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_terrain"]
+size = Vector2(120, 120)
+subdivide_width = 128
+subdivide_depth = 128
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_terrain"]
+shader = ExtResource("2")
+shader_parameter/seed = 0.0
+shader_parameter/height_scale = 12.0
+shader_parameter/noise_scale = 0.05
+shader_parameter/island_radius = 55.0
+
+[node name="Terrain" type="Node3D"]
+script = ExtResource("1")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+material_override = SubResource("ShaderMaterial_terrain")
+mesh = SubResource("PlaneMesh_terrain")
