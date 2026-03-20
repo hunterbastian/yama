@@ -5,6 +5,8 @@ const TERRAIN_SIZE := 120.0
 const HEIGHT_SCALE := 18.0
 const ISLAND_RADIUS := 55.0
 const NOISE_SCALE := 0.05
+const MEADOW_RADIUS := 15.0
+const MEADOW_TRANSITION := 10.0
 
 @onready var mesh: MeshInstance3D = $MeshInstance3D
 
@@ -44,7 +46,10 @@ func _sample_height(wx: float, wz: float) -> float:
 	       + _noise.get_noise_2d(px * 4.0 + 91.0, pz * 4.0 + 53.0) * 0.2
 	var dist := sqrt(wx * wx + wz * wz) / ISLAND_RADIUS
 	var falloff := 1.0 - smoothstep(0.5, 1.0, dist)
-	return h * HEIGHT_SCALE * falloff
+	# Meadow — flat at center, mountains rise around it
+	var center_dist := sqrt(wx * wx + wz * wz)
+	var meadow_mask := smoothstep(MEADOW_RADIUS, MEADOW_RADIUS + MEADOW_TRANSITION, center_dist)
+	return h * HEIGHT_SCALE * falloff * meadow_mask
 
 func _build_collision() -> void:
 	if _collision_body:

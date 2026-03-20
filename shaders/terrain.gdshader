@@ -4,6 +4,8 @@ uniform float seed : hint_range(0.0, 1000.0) = 0.0;
 uniform float height_scale : hint_range(0.0, 30.0) = 18.0;
 uniform float noise_scale : hint_range(0.01, 0.2) = 0.05;
 uniform float island_radius : hint_range(10.0, 100.0) = 55.0;
+uniform float meadow_radius : hint_range(0.0, 40.0) = 15.0;
+uniform float meadow_transition : hint_range(1.0, 20.0) = 10.0;
 
 varying float v_height;
 varying vec3 v_world_normal;
@@ -48,7 +50,11 @@ float terrain_height(vec2 pos) {
 	float dist = length(pos) / island_radius;
 	float falloff = 1.0 - smoothstep(0.5, 1.0, dist);
 
-	return h * height_scale * falloff;
+	// Meadow — flat grass field at center, mountains rise around it
+	float center_dist = length(pos);
+	float meadow_mask = smoothstep(meadow_radius, meadow_radius + meadow_transition, center_dist);
+
+	return h * height_scale * falloff * meadow_mask;
 }
 
 void vertex() {
