@@ -63,10 +63,10 @@ func update_day_factor(day_factor: float) -> void:
 
 func _get_terrain_normal(terrain: Node3D, x: float, z: float) -> Vector3:
 	var eps := 0.5
-	var hL := terrain.get_height_at(x - eps, z)
-	var hR := terrain.get_height_at(x + eps, z)
-	var hD := terrain.get_height_at(x, z - eps)
-	var hU := terrain.get_height_at(x, z + eps)
+	var hL: float = terrain.get_height_at(x - eps, z)
+	var hR: float = terrain.get_height_at(x + eps, z)
+	var hD: float = terrain.get_height_at(x, z - eps)
+	var hU: float = terrain.get_height_at(x, z + eps)
 	return Vector3(hL - hR, 1.0, hD - hU).normalized()
 
 
@@ -99,7 +99,7 @@ func _generate_trees(terrain: Node3D, water_y: float, rng: RandomNumberGenerator
 				z += TREE_GRID_SPACING
 				continue
 
-			var height := terrain.get_height_at(jx, jz)
+			var height: float = terrain.get_height_at(jx, jz)
 
 			# Filter: below water
 			if height < water_y:
@@ -172,7 +172,7 @@ func _generate_rocks(terrain: Node3D, water_y: float, rng: RandomNumberGenerator
 				z += ROCK_GRID_SPACING
 				continue
 
-			var height := terrain.get_height_at(jx, jz)
+			var height: float = terrain.get_height_at(jx, jz)
 
 			# Filter: below water
 			if height < water_y:
