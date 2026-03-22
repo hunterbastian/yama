@@ -30,7 +30,7 @@ Three size variants created by scaling the base scene at spawn time:
 - Medium: scale 1.0-1.2 (standard)
 - Large: scale 1.4-1.8 (old growth, higher elevations)
 
-The tree scene also contains a StaticBody3D with a CylinderShape3D (radius ~0.3, height matching trunk) for collision. This collision shape is not part of the MultiMesh — it's spawned as a separate child node per tree.
+The tree PackedScene is used as a reference for mesh data only — it is not instantiated at runtime. Collision bodies (StaticBody3D + CylinderShape3D, radius ~0.3, height ~2.0) are constructed in code by `scatter.gd` and added as children of the Scatter node.
 
 ## 2. Rock Mesh
 
@@ -58,11 +58,11 @@ A new script `scripts/scatter.gd` attached to a Node3D ("Scatter") in the main s
 4. Reject candidates that fail any filter:
    - **Below water**: `terrain.get_height_at(x, z) < water_y`
    - **Meadow center** (trees only): `distance_from_center < meadow_radius + 5.0` — trees start beyond the meadow with a buffer
-   - **Steep slopes** (trees only): terrain normal Y component < 0.7 (too steep for trees to grow)
+   - **Steep slopes** (trees only): terrain normal Y component < 0.7 (too steep for trees to grow). Normal is computed via finite differences: sample `get_height_at` at ±0.5 offsets in X and Z, then `Vector3(hL - hR, 1.0, hD - hU).normalized()` — same approach as terrain shader line 69-74
    - **Island edge**: `distance_from_center > island_radius * 0.85` — nothing near the falloff rim
 5. For accepted candidates:
    - Query `terrain.get_height_at(x, z)` for Y position
-   - Pick size variant based on height (larger trees at higher elevations)
+   - Pick size variant based on height: small (scale 0.6-0.8) below height 3.0, medium (1.0-1.2) at 3.0-7.0, large (1.4-1.8) above 7.0
    - Random Y rotation for visual variety
    - Write transform to MultiMesh
    - Spawn a StaticBody3D at the same position for collision
@@ -70,7 +70,7 @@ A new script `scripts/scatter.gd` attached to a Node3D ("Scatter") in the main s
 ### Rock placement filters
 
 Rocks use a different noise frequency and relaxed filters:
-- Allowed closer to meadow center (`distance > meadow_radius - 5.0`)
+- Allowed closer to meadow center (`distance > 10.0`) — rocks can appear within the meadow transition zone but not the flat center
 - Allowed on moderate slopes (normal Y > 0.5)
 - Not allowed below water
 
@@ -78,11 +78,11 @@ Rocks use a different noise frequency and relaxed filters:
 
 Each MultiMeshInstance3D:
 - `transform_format = TRANSFORM_3D`
-- `instance_count` set to actual spawned count after filtering
+- Placement collects accepted transforms into an array first, then sets `instance_count` to the array size, then writes all transforms
 - Mesh assigned from the tree/rock PackedScene's MeshInstance3D
 - Material override with foliage shader
 
-Collision bodies are separate Node3D children of the Scatter node, not part of the MultiMesh.
+Collision bodies are separate Node3D children of the Scatter node, not part of the MultiMesh. On `regenerate()`, all collision children are freed by iterating `get_children()` and calling `queue_free()` on each StaticBody3D before re-generating.
 
 ## 4. Foliage Shader
 
@@ -98,6 +98,9 @@ void fragment() {
     ALBEDO = base_color.rgb;
     // Night darkening
     ALBEDO *= mix(0.4, 1.0, day_factor);
+    ROUGHNESS = 1.0;
+    METALLIC = 0.0;
+    SPECULAR = 0.0;
 }
 
 void light() {
@@ -113,13 +116,13 @@ The `day_factor` uniform is updated by `main.gd` each frame (same value already 
 
 ### Existing connections
 
-- `main.gd` already computes `day_factor` and manages terrain regeneration
-- `terrain.gd` already exposes `get_height_at()` and `set_seed()`
+- `main.gd` already computes `day_factor` (local variable in `_process()`) and manages terrain regeneration
+- `terrain.gd` already exposes `get_height_at()` and `set_seed()`. Add a `get_seed() -> float` getter that returns `_current_seed`
 
 ### New connections
 
 - `main.gd` gets `@onready var scatter: Node3D = $Scatter`
-- In `_process()`, pass `day_factor` to foliage shader materials
+- In `_process()`, call `scatter.update_day_factor(day_factor)` which sets the `day_factor` shader parameter on both MultiMeshInstance3D material overrides
 - In `_unhandled_input()` regeneration block, call `scatter.regenerate(terrain, water_y)` after `terrain.set_seed()`
 - In `_ready()`, call `scatter.generate(terrain, water_y)` for initial population
 
@@ -128,7 +131,10 @@ The `day_factor` uniform is updated by `main.gd` each frame (same value already 
 ```gdscript
 func generate(terrain: Node3D, water_y: float) -> void
 func regenerate(terrain: Node3D, water_y: float) -> void  # clears + generates
+func update_day_factor(day_factor: float) -> void  # sets shader uniform on MultiMesh materials
 ```
+
+`water_y` is `$Water.global_position.y` from main.gd (currently -0.2).
 
 ## 6. Regeneration
 
