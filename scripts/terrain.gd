@@ -24,6 +24,9 @@ func set_seed(new_seed: float) -> void:
 	mesh.material_override.set_shader_parameter("seed", new_seed)
 	_build_collision()
 
+func get_seed() -> float:
+	return _current_seed
+
 func _setup_noise() -> void:
 	# Fixed seed — we mirror the shader's coordinate-offset approach.
 	# Shader: pos * noise_scale + vec2(seed, seed)
