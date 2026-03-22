@@ -37,8 +37,9 @@ The tree PackedScene is used as a reference for mesh data only — it is not ins
 Small rounded boulders. Each rock is a PackedScene (`scenes/rock.tscn`) containing:
 
 - **Mesh**: SphereMesh with non-uniform scaling (e.g., scale `(1.0, 0.6, 0.8)`) to look like a natural stone
-- **Material**: StandardMaterial3D or foliage shader, using terrain rock color `vec3(0.60, 0.60, 0.54)`, cel-shaded
-- **Collision**: StaticBody3D with SphereShape3D
+- **Material**: foliage shader with terrain rock color `vec3(0.60, 0.60, 0.54)`, cel-shaded
+
+Like trees, the rock PackedScene is mesh-data only — collision (StaticBody3D + SphereShape3D) is constructed in code by `scatter.gd`.
 
 Size variants via random scale at spawn:
 - Small: scale 0.3-0.5 (ankle-height pebbles)
@@ -143,7 +144,7 @@ When R is pressed:
 2. `scatter.regenerate(terrain, water_y)` — clears all MultiMesh instances and collision bodies, re-runs placement with the same seed (derived from terrain seed)
 3. Player repositioned above terrain (existing behavior)
 
-The scatter seed is derived from the terrain seed (e.g., `terrain_seed + 100.0`) so the same terrain always produces the same tree layout.
+The scatter seed is derived from the terrain seed: `int(terrain.get_seed()) + 100`. This integer seed is used to initialize a deterministic RNG (`RandomNumberGenerator`) for jitter and noise sampling, so the same terrain always produces the same tree layout.
 
 ## 7. Files Summary
 
