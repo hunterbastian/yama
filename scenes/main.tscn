@@ -4,6 +4,7 @@
 [ext_resource type="PackedScene" path="res://scenes/terrain.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/water.tscn" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/fog.tscn" id="5"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat"]
 sky_top_color = Color(0.66, 0.85, 0.92, 1)
@@ -45,3 +46,5 @@ directional_shadow_mode = 1
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 15, 0)
 
 [node name="Water" parent="." instance=ExtResource("4")]
+
+[node name="Fog" parent="." instance=ExtResource("5")]

@@ -1,0 +1,25 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Shader" path="res://shaders/fog.gdshader" id="1"]
+
+[sub_resource type="ShaderMaterial" id="FogMat"]
+render_priority = 1
+transparency = 1
+shader = ExtResource("1")
+shader_parameter/fog_color = Color(0.70, 0.80, 0.92, 0.7)
+shader_parameter/fog_height = 5.0
+shader_parameter/fog_density = 1.6
+shader_parameter/scroll_speed = 0.008
+shader_parameter/noise_scale = 0.018
+shader_parameter/edge_softness = 6.0
+shader_parameter/time_scale = 0.6
+
+[sub_resource type="PlaneMesh" id="FogMesh"]
+size = Vector2(140, 140)
+subdivide_width = 1
+subdivide_depth = 1
+
+[node name="Fog" type="MeshInstance3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.0, 0)
+mesh = SubResource("FogMesh")
+material_override = SubResource("FogMat")

@@ -6,6 +6,7 @@ extends Node3D
 @onready var player: CharacterBody3D = $Player
 @onready var sun: DirectionalLight3D = $DirectionalLight3D
 @onready var env: WorldEnvironment = $WorldEnvironment
+@onready var fog_mesh: MeshInstance3D = $Fog
 
 var _time_of_day := 0.25  # Start at sunrise (0=midnight, 0.25=sunrise, 0.5=noon, 0.75=sunset)
 
@@ -81,6 +82,12 @@ func _process(delta: float) -> void:
 	var fog_color := NIGHT_FOG.lerp(DAY_FOG, day_factor)
 	fog_color = fog_color.lerp(SUNSET_FOG, sunset_factor * 0.7)
 	env.environment.fog_light_color = fog_color
+
+	# Volumetric fog plane — sync color with environment fog
+	var fog_mat: ShaderMaterial = fog_mesh.material_override
+	if fog_mat:
+		var vol_fog_alpha := lerpf(0.7, 0.6, day_factor)  # Denser at night
+		fog_mat.set_shader_parameter("fog_color", Color(fog_color.r, fog_color.g, fog_color.b, vol_fog_alpha))
 
 	# Sun light
 	var sun_color := NIGHT_SUN.lerp(DAY_SUN, day_factor)
