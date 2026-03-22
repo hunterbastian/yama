@@ -8,6 +8,7 @@ extends Node3D
 @onready var env: WorldEnvironment = $WorldEnvironment
 @onready var fog_mesh: MeshInstance3D = $Fog
 @onready var water: MeshInstance3D = $Water
+@onready var scatter: Node3D = $Scatter
 
 var _time_of_day := 0.25  # Start at sunrise (0=midnight, 0.25=sunrise, 0.5=noon, 0.75=sunset)
 var _player_speed_smooth := 0.0
@@ -38,6 +39,7 @@ const NIGHT_AMBIENT := 0.1
 func _ready() -> void:
 	player.global_position = Vector3(0, terrain.get_height_at(0, 0) + 3.0, 0)
 	player.water_y = $Water.global_position.y
+	scatter.generate(terrain, $Water.global_position.y)
 
 func _process(delta: float) -> void:
 	_time_of_day += delta / cycle_duration
@@ -104,6 +106,9 @@ func _process(delta: float) -> void:
 		# Day/night tint from fog palette
 		water_mat.set_shader_parameter("water_effect_tint", fog_color)
 
+	# Scatter — day/night sync
+	scatter.update_day_factor(day_factor)
+
 	# Sun light
 	var sun_color := NIGHT_SUN.lerp(DAY_SUN, day_factor)
 	sun_color = sun_color.lerp(SUNSET_SUN, sunset_factor * 0.8)
@@ -119,6 +124,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		terrain.set_seed(new_seed)
 		player.global_position = Vector3(0, terrain.get_height_at(0, 0) + 3.0, 0)
 		player.velocity = Vector3.ZERO
+		scatter.regenerate(terrain, $Water.global_position.y)
 
 static func smoothstep(edge0: float, edge1: float, x: float) -> float:
 	var t := clampf((x - edge0) / (edge1 - edge0), 0.0, 1.0)
