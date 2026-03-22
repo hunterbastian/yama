@@ -32,6 +32,12 @@ const APEX_GRAVITY_MULT := 0.4
 
 var _walk_time := 0.0
 var _prev_walk_sin := 0.0
+var _wet_timer := 0.0
+const WET_DRY_TIME := 3.0
+
+func _ready() -> void:
+	left_leg.set_surface_override_material(0, left_leg.get_surface_override_material(0).duplicate())
+	right_leg.set_surface_override_material(0, right_leg.get_surface_override_material(0).duplicate())
 
 func _physics_process(delta: float) -> void:
 	# --- Input ---
@@ -126,3 +132,20 @@ func _physics_process(delta: float) -> void:
 		left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, 8.0 * delta)
 		right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, 8.0 * delta)
 		body.position.y = lerp(body.position.y, 0.45, 8.0 * delta)
+
+	# Wet effect
+	if is_wading:
+		_wet_timer = WET_DRY_TIME
+	elif _wet_timer > 0.0:
+		_wet_timer -= delta
+
+	var wet_amount := clampf(_wet_timer / WET_DRY_TIME, 0.0, 1.0)
+	var effective_water_y := water_y if is_wading else water_y - (WET_DRY_TIME - _wet_timer) * 0.3
+	var leg_mat_l: ShaderMaterial = left_leg.get_surface_override_material(0)
+	var leg_mat_r: ShaderMaterial = right_leg.get_surface_override_material(0)
+	if leg_mat_l:
+		leg_mat_l.set_shader_parameter("water_y_world", effective_water_y)
+		leg_mat_l.set_shader_parameter("wet_amount", wet_amount)
+	if leg_mat_r:
+		leg_mat_r.set_shader_parameter("water_y_world", effective_water_y)
+		leg_mat_r.set_shader_parameter("wet_amount", wet_amount)

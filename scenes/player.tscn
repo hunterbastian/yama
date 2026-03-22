@@ -1,7 +1,8 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/camera.gd" id="2"]
+[ext_resource type="Shader" path="res://shaders/character_wet.gdshader" id="3"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.3
@@ -13,8 +14,11 @@ albedo_color = Color(0.82, 0.90, 0.87, 1.0)
 [sub_resource type="StandardMaterial3D" id="Mat_head"]
 albedo_color = Color(0.92, 0.95, 0.93, 1.0)
 
-[sub_resource type="StandardMaterial3D" id="Mat_legs"]
-albedo_color = Color(0.45, 0.58, 0.52, 1.0)
+[sub_resource type="ShaderMaterial" id="Mat_legs"]
+shader = ExtResource("3")
+shader_parameter/base_color = Color(0.45, 0.58, 0.52, 1.0)
+shader_parameter/water_y_world = -10.0
+shader_parameter/wet_amount = 0.0
 
 [sub_resource type="CapsuleMesh" id="Mesh_body"]
 radius = 0.2
