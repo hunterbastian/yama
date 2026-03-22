@@ -10,6 +10,7 @@ extends Node3D
 @onready var water: MeshInstance3D = $Water
 
 var _time_of_day := 0.25  # Start at sunrise (0=midnight, 0.25=sunrise, 0.5=noon, 0.75=sunset)
+var _player_speed_smooth := 0.0
 
 # Day palette
 const DAY_SKY_TOP := Color(0.66, 0.85, 0.92)
@@ -91,12 +92,17 @@ func _process(delta: float) -> void:
 		var vol_fog_alpha := lerpf(0.7, 0.6, day_factor)  # Denser at night
 		fog_mat.set_shader_parameter("fog_color", Color(fog_color.r, fog_color.g, fog_color.b, vol_fog_alpha))
 
-	# Water shader — player ripples
+	# Water shader — player ripples and foam
 	var water_mat: ShaderMaterial = water.material_override
 	if water_mat:
 		water_mat.set_shader_parameter("player_xz", Vector2(player.global_position.x, player.global_position.z))
 		var h_speed := Vector2(player.velocity.x, player.velocity.z).length()
 		water_mat.set_shader_parameter("player_speed", h_speed)
+		# Smooth speed for foam fade-out (~2 second decay)
+		_player_speed_smooth = lerpf(_player_speed_smooth, h_speed, 1.0 - exp(-delta * 1.5))
+		water_mat.set_shader_parameter("player_speed_smooth", _player_speed_smooth)
+		# Day/night tint from fog palette
+		water_mat.set_shader_parameter("water_effect_tint", fog_color)
 
 	# Sun light
 	var sun_color := NIGHT_SUN.lerp(DAY_SUN, day_factor)
