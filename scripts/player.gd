@@ -28,8 +28,10 @@ const APEX_GRAVITY_MULT := 0.4
 @onready var left_leg: MeshInstance3D = $CharacterModel/LeftLeg
 @onready var right_leg: MeshInstance3D = $CharacterModel/RightLeg
 @onready var body: MeshInstance3D = $CharacterModel/Body
+@onready var splash_particles: GPUParticles3D = $SplashParticles
 
 var _walk_time := 0.0
+var _prev_walk_sin := 0.0
 
 func _physics_process(delta: float) -> void:
 	# --- Input ---
@@ -101,9 +103,26 @@ func _physics_process(delta: float) -> void:
 		right_leg.rotation.x = -swing
 		# Subtle body bob
 		body.position.y = 0.45 + abs(sin(_walk_time * 2.0)) * 0.03
+		# Splash particles — burst on footstep (sin crosses zero)
+		var walk_sin := sin(_walk_time)
+		if is_wading:
+			if (_prev_walk_sin < 0.0 and walk_sin >= 0.0) or (_prev_walk_sin > 0.0 and walk_sin <= 0.0):
+				splash_particles.global_position = Vector3(
+					global_position.x, water_y, global_position.z)
+				# Scale particle count by depth
+				var amount := 4
+				if water_depth > KNEE_DEPTH:
+					amount = 12
+				elif water_depth > ANKLE_DEPTH:
+					amount = 8
+				splash_particles.amount = amount
+				splash_particles.restart()
+				splash_particles.emitting = true
+		_prev_walk_sin = walk_sin
 	else:
 		# Return to idle
 		_walk_time = 0.0
+		_prev_walk_sin = 0.0
 		left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, 8.0 * delta)
 		right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, 8.0 * delta)
 		body.position.y = lerp(body.position.y, 0.45, 8.0 * delta)
