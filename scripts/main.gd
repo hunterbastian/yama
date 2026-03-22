@@ -35,6 +35,7 @@ const NIGHT_AMBIENT := 0.1
 
 func _ready() -> void:
 	player.global_position = Vector3(0, terrain.get_height_at(0, 0) + 3.0, 0)
+	player.water_y = $Water.global_position.y
 
 func _process(delta: float) -> void:
 	_time_of_day += delta / cycle_duration

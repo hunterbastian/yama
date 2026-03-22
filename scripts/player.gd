@@ -8,6 +8,13 @@ extends CharacterBody3D
 @export var friction := 10.0
 @export var rotation_speed := 10.0
 
+# Wading
+var water_y := 0.0
+var water_depth := 0.0
+var is_wading := false
+const ANKLE_DEPTH := 0.3
+const KNEE_DEPTH := 0.6
+
 # Coyote time — forgiveness window after walking off an edge
 var _coyote_timer := 0.0
 const COYOTE_TIME := 0.15
@@ -44,6 +51,19 @@ func _physics_process(delta: float) -> void:
 	var sprinting := Input.is_action_pressed("sprint")
 	var speed := move_speed * (sprint_multiplier if sprinting else 1.0)
 
+	# Wading slowdown
+	water_depth = water_y - global_position.y
+	is_wading = water_depth > 0.0
+	if is_wading:
+		var wade_mult := 1.0
+		if water_depth > KNEE_DEPTH:
+			wade_mult = 0.4
+		elif water_depth > ANKLE_DEPTH:
+			wade_mult = 0.65
+		else:
+			wade_mult = 0.85
+		speed *= wade_mult
+
 	# --- Horizontal movement ---
 	if wish_dir.length() > 0.0:
 		velocity.x = move_toward(velocity.x, wish_dir.x * speed, acceleration * delta * speed)
@@ -64,7 +84,7 @@ func _physics_process(delta: float) -> void:
 		_coyote_timer = COYOTE_TIME
 
 	# --- Jump with coyote time ---
-	if Input.is_action_just_pressed("jump") and _coyote_timer > 0.0:
+	if Input.is_action_just_pressed("jump") and _coyote_timer > 0.0 and water_depth < KNEE_DEPTH:
 		velocity.y = jump_velocity
 		_coyote_timer = 0.0
 
