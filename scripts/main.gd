@@ -7,6 +7,7 @@ extends Node3D
 @onready var sun: DirectionalLight3D = $DirectionalLight3D
 @onready var env: WorldEnvironment = $WorldEnvironment
 @onready var fog_mesh: MeshInstance3D = $Fog
+@onready var water: MeshInstance3D = $Water
 
 var _time_of_day := 0.25  # Start at sunrise (0=midnight, 0.25=sunrise, 0.5=noon, 0.75=sunset)
 
@@ -89,6 +90,13 @@ func _process(delta: float) -> void:
 	if fog_mat:
 		var vol_fog_alpha := lerpf(0.7, 0.6, day_factor)  # Denser at night
 		fog_mat.set_shader_parameter("fog_color", Color(fog_color.r, fog_color.g, fog_color.b, vol_fog_alpha))
+
+	# Water shader — player ripples
+	var water_mat: ShaderMaterial = water.material_override
+	if water_mat:
+		water_mat.set_shader_parameter("player_xz", Vector2(player.global_position.x, player.global_position.z))
+		var h_speed := Vector2(player.velocity.x, player.velocity.z).length()
+		water_mat.set_shader_parameter("player_speed", h_speed)
 
 	# Sun light
 	var sun_color := NIGHT_SUN.lerp(DAY_SUN, day_factor)
