@@ -1,0 +1,19 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Shader" path="res://shaders/foliage.gdshader" id="1"]
+
+[sub_resource type="ShaderMaterial" id="Mat_rock"]
+shader = ExtResource("1")
+shader_parameter/base_color = Color(0.6, 0.6, 0.54, 1)
+shader_parameter/day_factor = 1.0
+
+[sub_resource type="SphereMesh" id="Mesh_rock"]
+radius = 0.5
+height = 1.0
+
+[node name="Rock" type="Node3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.0, 0, 0, 0, 0.6, 0, 0, 0, 0.8, 0, 0, 0)
+material_override = SubResource("Mat_rock")
+mesh = SubResource("Mesh_rock")
