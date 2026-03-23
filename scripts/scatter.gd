@@ -5,6 +5,8 @@ const MEADOW_RADIUS := 15.0
 const TREE_GRID_SPACING := 5.0
 const ROCK_GRID_SPACING := 9.0
 const JITTER := 2.0
+const GRASS_GRID_SPACING := 1.5
+const GRASS_JITTER := 0.7
 
 # 4 MMIs for tree parts (trunk + 3 canopy layers) — same transforms, different meshes
 @onready var tree_trunk_mmi: MultiMeshInstance3D = $TreeTrunk
@@ -12,15 +14,20 @@ const JITTER := 2.0
 @onready var tree_canopy2_mmi: MultiMeshInstance3D = $TreeCanopy2
 @onready var tree_canopy3_mmi: MultiMeshInstance3D = $TreeCanopy3
 @onready var rock_mmi: MultiMeshInstance3D = $RockMesh
+@onready var grass_mmi: MultiMeshInstance3D = $GrassMesh
 
 var _tree_mmis: Array[MultiMeshInstance3D]
 var _tree_scene: PackedScene
 var _rock_scene: PackedScene
+var _grass_mesh: PlaneMesh
 
 func _ready() -> void:
 	_tree_scene = load("res://scenes/tree.tscn")
 	_rock_scene = load("res://scenes/rock.tscn")
 	_tree_mmis = [tree_trunk_mmi, tree_canopy1_mmi, tree_canopy2_mmi, tree_canopy3_mmi]
+	_grass_mesh = PlaneMesh.new()
+	_grass_mesh.size = Vector2(0.06, 0.4)
+	_grass_mesh.orientation = PlaneMesh.FACE_Z
 
 
 func generate(terrain: Node3D, water_y: float) -> void:
@@ -34,6 +41,7 @@ func generate(terrain: Node3D, water_y: float) -> void:
 
 	_generate_trees(terrain, water_y, rng, noise)
 	_generate_rocks(terrain, water_y, rng, noise)
+	_generate_grass(terrain, water_y)
 
 
 func regenerate(terrain: Node3D, water_y: float) -> void:
@@ -47,6 +55,8 @@ func regenerate(terrain: Node3D, water_y: float) -> void:
 			mmi.multimesh.instance_count = 0
 	if rock_mmi.multimesh:
 		rock_mmi.multimesh.instance_count = 0
+	if grass_mmi.multimesh:
+		grass_mmi.multimesh.instance_count = 0
 	# Wait one frame for queue_free to process, then regenerate
 	# Note: this makes regenerate() async — caller does not need to await
 	await get_tree().process_frame
@@ -59,6 +69,8 @@ func update_day_factor(day_factor: float) -> void:
 			mmi.material_override.set_shader_parameter("day_factor", day_factor)
 	if rock_mmi.material_override:
 		rock_mmi.material_override.set_shader_parameter("day_factor", day_factor)
+	if grass_mmi.material_override:
+		grass_mmi.material_override.set_shader_parameter("day_factor", day_factor)
 
 
 func _get_terrain_normal(terrain: Node3D, x: float, z: float) -> Vector3:
@@ -207,6 +219,83 @@ func _generate_rocks(terrain: Node3D, water_y: float, rng: RandomNumberGenerator
 
 	for t in transforms:
 		_spawn_rock_collision(t)
+
+
+func _generate_grass(terrain: Node3D, water_y: float) -> void:
+	var grass_rng := RandomNumberGenerator.new()
+	grass_rng.seed = int(terrain.get_seed()) + 300
+
+	var grass_noise := FastNoiseLite.new()
+	grass_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	grass_noise.seed = int(terrain.get_seed()) + 400
+	grass_noise.frequency = 0.12
+
+	var transforms: Array[Transform3D] = []
+	var half := ISLAND_RADIUS
+
+	var x := -half
+	while x < half:
+		var z := -half
+		while z < half:
+			var jx := x + grass_rng.randf_range(-GRASS_JITTER, GRASS_JITTER)
+			var jz := z + grass_rng.randf_range(-GRASS_JITTER, GRASS_JITTER)
+
+			var dist := sqrt(jx * jx + jz * jz)
+
+			# Filter: island edge
+			if dist > ISLAND_RADIUS * 0.75:
+				z += GRASS_GRID_SPACING
+				continue
+
+			# Density thinning beyond meadow
+			var noise_threshold := -0.2
+			if dist > MEADOW_RADIUS:
+				noise_threshold = lerpf(-0.2, 0.3, (dist - MEADOW_RADIUS) / 10.0)
+
+			var n := grass_noise.get_noise_2d(jx * 0.2, jz * 0.2)
+			if n < noise_threshold:
+				z += GRASS_GRID_SPACING
+				continue
+
+			var height: float = terrain.get_height_at(jx, jz)
+
+			# Filter: below water
+			if height < water_y:
+				z += GRASS_GRID_SPACING
+				continue
+
+			# Filter: steep slopes
+			var normal := _get_terrain_normal(terrain, jx, jz)
+			if normal.y < 0.8:
+				z += GRASS_GRID_SPACING
+				continue
+
+			# Random scale, rotation, tilt
+			var scale_y := grass_rng.randf_range(0.6, 1.6)
+			var rot_y := grass_rng.randf_range(0.0, TAU)
+			var tilt_x := grass_rng.randf_range(-0.25, 0.25)
+			var tilt_z := grass_rng.randf_range(-0.25, 0.25)
+
+			var basis := Basis.IDENTITY
+			basis = basis.rotated(Vector3.UP, rot_y)
+			basis = basis.rotated(Vector3.RIGHT, tilt_x)
+			basis = basis.rotated(Vector3.FORWARD, tilt_z)
+			basis = basis.scaled(Vector3(1.0, scale_y, 1.0))
+
+			var origin := Vector3(jx, height, jz)
+			transforms.append(Transform3D(basis, origin))
+
+			z += GRASS_GRID_SPACING
+		x += GRASS_GRID_SPACING
+
+	# Write to MultiMesh
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = _grass_mesh
+	mm.instance_count = transforms.size()
+	for i in transforms.size():
+		mm.set_instance_transform(i, transforms[i])
+	grass_mmi.multimesh = mm
 
 
 func _write_multimesh(mmi: MultiMeshInstance3D, mesh: Mesh, part_offset: Transform3D, transforms: Array[Transform3D]) -> void:
