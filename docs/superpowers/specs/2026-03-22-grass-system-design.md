@@ -17,7 +17,7 @@ Fill the meadow and lower slopes with knee-high swaying grass blades that react 
 
 ## 1. Grass Blade Mesh
 
-A single grass blade is a thin quad (PlaneMesh, width ~0.06, height ~0.4) stored as `scenes/grass_blade.tscn`. The mesh is double-sided (`render_mode cull_disabled` in shader).
+A single grass blade is a thin quad (PlaneMesh, width ~0.06, height ~0.4) constructed inline in `scatter.gd _ready()`. The mesh is double-sided (`render_mode cull_disabled` in shader). No separate scene file — it's a single primitive.
 
 Three height variants via random Y scale at spawn:
 - Short: scale 0.6-0.8 (ground cover)
@@ -32,7 +32,7 @@ Random Y rotation at spawn for variety. Random X/Z tilt (±15 degrees) to break 
 
 ```glsl
 shader_type spatial;
-render_mode cull_disabled, depth_draw_opaque;
+render_mode cull_disabled;
 
 uniform vec3 base_color = vec3(0.35, 0.70, 0.45);
 uniform vec3 tip_color = vec3(0.55, 0.90, 0.65);
@@ -58,11 +58,11 @@ void vertex() {
     VERTEX.x += wind * 0.15;
     VERTEX.z += wind * 0.08;
 
-    // Player push-away
+    // Player push-away (guard against zero-length when player is exactly on blade)
     vec2 to_player = world_pos.xz - player_xz;
     float dist = length(to_player);
     float push = smoothstep(1.5, 0.3, dist) * sway_factor;
-    vec2 push_dir = normalize(to_player) * push * 0.4;
+    vec2 push_dir = normalize(to_player + vec2(0.001, 0.001)) * push * 0.4;
     VERTEX.x += push_dir.x;
     VERTEX.z += push_dir.y;
 }
@@ -76,11 +76,7 @@ void fragment() {
     vec3 col = mix(base_color, tip_color, UV.y);
     col *= mix(0.4, 1.0, day_factor);
 
-    // Alpha taper at tip for soft edges
-    float alpha = smoothstep(1.0, 0.85, UV.y);
     ALBEDO = col;
-    ALPHA = alpha;
-    ALPHA_SCISSOR_THRESHOLD = 0.5;
     ROUGHNESS = 1.0;
     METALLIC = 0.0;
     SPECULAR = 0.0;
@@ -110,8 +106,8 @@ Denser grid than trees — spacing ~1.5 units with ±0.7 jitter:
 1. Sample candidates on a jittered grid (spacing 1.5 units)
 2. Apply noise gate for natural patchiness (different noise seed than trees)
 3. Filter by:
-   - **Below water:** `terrain.get_height_at(x, z) < water_y` — no grass underwater
-   - **Distance from center:** grass grows from center out to ~25 units. Density falls off via noise threshold tightening beyond meadow_radius
+   - **Below water:** `terrain.get_height_at(x, z) < water_y` — no grass underwater. Uses the base water plane Y (same approach as trees/rocks — blades near the waterline may appear submerged during wave crests, which is acceptable)
+   - **Distance from center:** grass is dense in the meadow (radius 15) and thins out to ~25 units from center via noise threshold tightening beyond `MEADOW_RADIUS`
    - **Steep slopes:** `normal.y < 0.8` — no grass on steep terrain (stricter than trees at 0.7)
    - **Island edge:** `dist > island_radius * 0.75` — no grass near the rim
 4. For accepted candidates:
@@ -145,7 +141,7 @@ GrassMesh.visibility_range_end = 40.0
 GrassMesh.visibility_range_end_margin = 5.0
 ```
 
-This culls grass beyond 40 units from camera, saving draw calls for distant terrain. The margin creates a smooth fade-out rather than a hard pop.
+This skips rendering grass instances beyond 40 units from camera. The MultiMesh is still a single draw call, but the GPU skips distant instances. The margin creates a smooth fade-out rather than a hard pop.
 
 ### Single draw call
 
@@ -153,7 +149,7 @@ MultiMesh renders all ~3000-4000 blades in a single draw call. No per-blade over
 
 ### Minimal fragment cost
 
-- `ALPHA_SCISSOR_THRESHOLD` instead of transparency (avoids alpha sorting overhead)
+- Opaque blades (no alpha) — avoids alpha sorting overhead entirely
 - Simple gradient color, no texture sampling
 - Cel-shading light function is 3 math ops
 
@@ -167,13 +163,23 @@ MultiMesh renders all ~3000-4000 blades in a single draw call. No per-blade over
 
 ### scatter.gd changes
 
-Add to `_ready()`: load grass blade scene, store reference to `$GrassMesh` MultiMeshInstance3D.
+Add `@onready var grass_mmi: MultiMeshInstance3D = $GrassMesh` alongside the existing tree/rock MMI references.
 
-Add `_generate_grass()` called from `generate()` after trees and rocks.
+In `_ready()`: construct a `PlaneMesh` inline (width 0.06, height 0.4) — no need for a separate scene file since it's a single primitive mesh. Store as `var _grass_mesh: PlaneMesh`.
 
-Add grass MMI to `update_day_factor()` loop.
+Add `_generate_grass(terrain, water_y, rng, noise)` called from `generate()` after trees and rocks. Use dedicated RNG/noise seeds to avoid coupling with tree/rock placement order: `rng.seed = int(terrain.get_seed()) + 300`, create a separate `FastNoiseLite` with seed `int(terrain.get_seed()) + 400`.
 
-Add grass to `regenerate()` cleanup.
+In `update_day_factor()`, add explicit grass branch (matching existing pattern — not a loop):
+```gdscript
+if grass_mmi.material_override:
+    grass_mmi.material_override.set_shader_parameter("day_factor", day_factor)
+```
+
+In `regenerate()`, add to the explicit clear block:
+```gdscript
+if grass_mmi.multimesh:
+    grass_mmi.multimesh.instance_count = 0
+```
 
 ### main.gd changes
 
@@ -197,7 +203,8 @@ Add `GrassMesh` MultiMeshInstance3D as child of Scatter node with:
 | File | Responsibility |
 |------|---------------|
 | `shaders/grass.gdshader` | Grass blade shader: wind sway, player push-away, color gradient, cel-shading |
-| `scenes/grass_blade.tscn` | Thin PlaneMesh quad for grass blade geometry |
+
+Note: Grass mesh is a PlaneMesh constructed inline in `scatter.gd _ready()` — no separate scene file needed for a single primitive.
 
 ### Modify
 | File | Changes |
