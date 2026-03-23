@@ -26,23 +26,30 @@ Each wave defined by: direction (vec2), amplitude, frequency, steepness (Q facto
 Wave 1: dir=(1.0, 0.0),  amp=0.35, freq=0.8,  Q=0.4  — primary swell
 Wave 2: dir=(0.7, 0.7),  amp=0.20, freq=1.2,  Q=0.3  — cross wave
 Wave 3: dir=(0.3, 1.0),  amp=0.15, freq=1.8,  Q=0.3  — detail ripple
-Wave 4: dir(-0.5, 0.8),  amp=0.10, freq=2.5,  Q=0.2  — fine detail
+Wave 4: dir=(-0.5, 0.8), amp=0.10, freq=2.5,  Q=0.2  — fine detail
 ```
 
 Gerstner vertex displacement formula per wave:
 ```glsl
+// dir is vec2(world_x_direction, world_z_direction)
 // For each wave i:
 float phase = freq * dot(dir, vertex.xz) + TIME * speed;
 vertex.x += Q * amp * dir.x * cos(phase);
-vertex.z += Q * amp * dir.y * cos(phase);
+vertex.z += Q * amp * dir.y * cos(phase);  // dir.y maps to world Z
 vertex.y += amp * sin(phase);
 ```
 
 Sum all 4 waves. Recompute normals from the Gerstner analytical normal formula (not finite differences — Gerstner normals have a closed-form solution).
 
-The water mesh (`scenes/water.tscn`) needs higher subdivision to show wave geometry. Increase from current subdivisions to 128x128.
+The water mesh (`scenes/water.tscn`) needs higher subdivision to show wave geometry. Set subdivisions to 128x128.
 
-**CPU-side wave height:** `main.gd` needs a GDScript function that evaluates the same 4 Gerstner waves at a given (x, z) to get the water surface height at the player's position. This replaces the flat `water_y` constant. Player wading detection uses `water_height_at(player.x, player.z)` instead of `water_y`.
+**CPU-side wave height:** `main.gd` needs a `_water_height_at(x: float, z: float) -> float` function that evaluates the same 4 Gerstner waves at a given (x, z) to get the water surface height. The base height is `$Water.global_position.y` (currently -0.2) plus the sum of Gerstner Y displacements.
+
+**Per-frame water_y update:** In `main.gd _process()`, before the water shader block, update `player.water_y` each frame:
+```gdscript
+player.water_y = _water_height_at(player.global_position.x, player.global_position.z)
+```
+Remove the one-time assignment from `_ready()`. This ensures wading detection, splash particle positioning (line 117), and wet-effect water line (lines 143-150) in `player.gd` all use the correct dynamic wave height automatically — no changes needed in `player.gd` for those systems since they already read `water_y`.
 
 ### 1b. Dynamic Foam
 
@@ -71,28 +78,36 @@ col = mix(col, deep, smoothstep(0.3, 0.6, water_depth));
 col = mix(col, abyss, smoothstep(0.6, 1.0, water_depth));
 ```
 
-Increase the depth range multiplier from `0.15` to `0.4` so the gradient has more visible range before saturating.
+Increase the depth range multiplier from `0.15` to `0.4` so the gradient has more visible range before saturating. Note: `water_depth` is computed from view-space Z distance (`VERTEX.z - view_pos.z`), so the gradient will vary slightly with camera angle. This is acceptable — it matches how Sea of Thieves water looks in practice.
 
 ### 1d. Underwater Effects
 
 When the camera position is below the water surface height (evaluated via the same Gerstner function):
 
-**Fog override:** `camera.gd` detects `camera.global_position.y < water_height_at(camera.x, camera.z)`. When underwater, override environment fog:
-- Fog color → `Color(0.05, 0.18, 0.25)` (deep blue-green)
-- Fog density → `0.05` (much denser, ~16x current, reduced visibility)
-- These values lerp back to normal over 0.3 seconds when surfacing
+**Underwater detection ownership:** `main.gd` owns all environment writes (fog, ambient, sun). Add `var _camera_underwater := false` and `var _underwater_blend := 0.0` to `main.gd`. Each frame in `_process()`, check if the camera node's Y position is below `_water_height_at(camera.x, camera.z)`. Smooth `_underwater_blend` toward 1.0 (underwater) or 0.0 (above) with exponential decay (~0.3 second transition). Then blend fog/ambient values:
 
-**Color tint:** Apply underwater tint by shifting the environment ambient light color to blue-green `Color(0.15, 0.35, 0.45)` and reducing ambient energy.
+```gdscript
+# After computing fog_color from day/night palette:
+var underwater_fog := Color(0.05, 0.18, 0.25)
+var underwater_ambient := Color(0.15, 0.35, 0.45)
+fog_color = fog_color.lerp(underwater_fog, _underwater_blend)
+env.environment.fog_density = lerpf(0.003, 0.05, _underwater_blend)
+# Ambient tint
+var ambient_color := Color.WHITE.lerp(underwater_ambient, _underwater_blend)
+env.environment.ambient_light_color = ambient_color
+```
 
-**Caustic light patterns:** Add a `uniform float caustic_strength` to `terrain.gdshader`. When > 0, project animated caustic noise onto terrain surfaces below `water_y`:
+This avoids the conflict of two scripts writing to the same environment property.
+
+**Caustic light patterns:** Add `uniform float caustic_strength` and `uniform float water_y_uniform` to `terrain.gdshader`. When `caustic_strength > 0`, project animated caustic noise onto terrain surfaces below the water line:
 ```glsl
 if (caustic_strength > 0.0 && v_world_pos.y < water_y_uniform) {
     float caustic = value_noise(v_world_pos.xz * 2.0 + TIME * vec2(0.3, 0.2));
-    caustic = pow(caustic, 2.0) * 0.4; // Sharpen and brighten
+    caustic = pow(caustic, 2.0) * 0.4;
     col += vec3(caustic) * caustic_strength;
 }
 ```
-`main.gd` sets `caustic_strength` to 1.0 when camera is underwater, 0.0 otherwise (with smooth transition).
+`main.gd` sets both uniforms each frame: `caustic_strength` follows `_underwater_blend`, and `water_y_uniform` is `$Water.global_position.y`. The `value_noise` function must be added to `terrain.gdshader` (copy the existing `hash()` + `value_noise()` from `water.gdshader`).
 
 ---
 
@@ -100,18 +115,24 @@ if (caustic_strength > 0.0 && v_world_pos.y < water_y_uniform) {
 
 ### 2a. Camera Bob
 
-In `camera.gd`, add a vertical + horizontal bob synced to `player._walk_time`:
+In `camera.gd`, add a vertical + horizontal bob synced to player's walk time. The bob offset must be computed **before** the camera position lerp (baked into the target position, not added after), otherwise the lerp overwrites it.
+
+Track a smoothed bob value rather than reading `player.walk_time` directly, because `_walk_time` resets to 0.0 on idle (causing a hard snap). Instead, `camera.gd` maintains its own `_bob_time` that increments while the player is moving and decays smoothly to zero when idle:
 
 ```gdscript
-var bob_y := sin(walk_time * 2.0) * bob_amplitude
-var bob_x := sin(walk_time) * bob_amplitude * 0.5
-camera.position.y += bob_y
-camera.position.x += bob_x
-```
+var _bob_time := 0.0
+var _bob_amplitude := 0.0
 
-- Walk bob amplitude: `0.04`
-- Sprint bob amplitude: `0.08`
-- Idle: smoothly lerp bob back to zero
+# In _process():
+var target_amp := 0.08 if player.is_sprinting else 0.04 if h_speed > 0.5 else 0.0
+_bob_amplitude = lerpf(_bob_amplitude, target_amp, 1.0 - exp(-delta * 8.0))
+if h_speed > 0.5:
+    _bob_time += delta * (8.0 if player.is_sprinting else 5.0)
+
+var bob_y := sin(_bob_time * 2.0) * _bob_amplitude
+var bob_x := sin(_bob_time) * _bob_amplitude * 0.5
+# Apply bob to target_pos BEFORE the lerp
+```
 
 ### 2b. Sprint Camera Sway
 
@@ -154,12 +175,11 @@ velocity.z = lerpf(velocity.z, target_vel.z, accel_weight)
 
 Reduce `acceleration` from 12.0 to 8.0 to emphasize the initial sluggishness. Keep `friction` at 10.0 for responsive stopping.
 
-Player needs to expose `_walk_time` and `sprinting` state for camera.gd to read:
+Player needs to expose sprint state for camera.gd to read. Promote the local `sprinting` variable (currently `var sprinting := ...` inside `_physics_process()`) to an instance variable:
 ```gdscript
-var walk_time: float:  # read by camera.gd
-    get: return _walk_time
-var is_sprinting := false  # set each frame, read by camera.gd
+var is_sprinting := false  # set each frame in _physics_process, read by camera.gd
 ```
+In `_physics_process()`, replace `var sprinting := Input.is_action_pressed("sprint")` with `is_sprinting = Input.is_action_pressed("sprint")`, and update all references from `sprinting` to `is_sprinting` within the function.
 
 ---
 
@@ -208,7 +228,7 @@ const NIGHT_FOG := Color(0.06, 0.08, 0.18)   # was (0.1, 0.12, 0.2) — deeper n
 
 ### 3d. Foliage Shader Saturation
 
-Update `foliage.gdshader` base_color defaults and the material overrides in `main.tscn` to match the new richer palette:
+Update the `material_override` `shader_parameter/base_color` values on the MultiMeshInstance3D nodes in `main.tscn` (the foliage shader has a single `base_color` uniform — per-instance colors live in the scene material overrides, not in the shader file itself):
 - Canopy dark: `Color(0.25, 0.55, 0.30, 1)` (was 0.3, 0.5, 0.35)
 - Canopy mid: `Color(0.30, 0.65, 0.38, 1)` (was 0.35, 0.58, 0.4)
 - Rock: `Color(0.55, 0.55, 0.48, 1)` (was 0.6, 0.6, 0.54)
@@ -222,11 +242,10 @@ Update `foliage.gdshader` base_color defaults and the material overrides in `mai
 |------|---------|
 | `shaders/water.gdshader` | Gerstner waves, whitecap foam, shore foam, depth gradient |
 | `scenes/water.tscn` | Increase mesh subdivisions to 128x128 |
-| `scripts/main.gd` | CPU Gerstner function, dynamic water_y, caustic/underwater uniforms, color constant updates |
+| `scripts/main.gd` | CPU Gerstner function `_water_height_at()`, per-frame `player.water_y` update, underwater detection + fog/ambient/caustic blending, color constant updates |
 | `scripts/player.gd` | Dynamic water height, expose walk_time/sprinting, momentum acceleration |
-| `scripts/camera.gd` | Camera bob, sprint sway, landing impact, underwater detection + fog override |
-| `shaders/terrain.gdshader` | Palette boost, cel-shading contrast, caustic pattern, water_y uniform |
-| `shaders/foliage.gdshader` | Update default base_color |
+| `scripts/camera.gd` | Camera bob, sprint sway, landing impact |
+| `shaders/terrain.gdshader` | Palette boost, cel-shading contrast, caustic pattern, `water_y_uniform` + `caustic_strength` uniforms, add `hash()` + `value_noise()` functions |
 | `scenes/main.tscn` | Update foliage material colors |
 | `CLAUDE.md` | Document changes |
 
@@ -237,6 +256,7 @@ Update `foliage.gdshader` base_color defaults and the material overrides in `mai
 ## 5. Integration Notes
 
 - Existing water interaction systems (ripples, foam trail, splash particles, wading speed, wet effect) all continue to work. The `player_xz`, `player_speed`, `player_speed_smooth`, `water_effect_tint` uniforms stay in the water shader.
-- `water_y` changes from a constant to a per-frame function evaluation. `main.gd` calls a new `_water_height_at(x, z)` function that sums the 4 Gerstner waves. This must match the shader exactly (CPU-GPU mirror, same pattern as terrain).
-- Camera bob reads `player.walk_time` and `player.is_sprinting` — these are exposed as properties on player.gd.
-- Underwater detection lives in `camera.gd` since it depends on camera position, not player position.
+- `water_y` changes from a one-time constant to a per-frame function evaluation. `main.gd` calls `_water_height_at(x, z)` each frame and writes to `player.water_y`. The Gerstner parameters must match the shader exactly (CPU-GPU mirror, same pattern as terrain heightmap).
+- Camera bob tracks its own `_bob_time` independent of `player._walk_time` to avoid snapping on idle. It reads `player.is_sprinting` (exposed as an instance variable).
+- Underwater detection and all environment overrides (fog, ambient, caustic) live in `main.gd` to avoid conflicts with the day/night cycle writes. `camera.gd` only handles camera bob/sway/landing — no environment property writes.
+- Splash particles, wading detection, and wet-effect all read `player.water_y` which is now updated per-frame — no changes needed in those systems.
