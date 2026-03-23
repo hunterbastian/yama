@@ -16,25 +16,25 @@ var _player_speed_smooth := 0.0
 # Day palette
 const DAY_SKY_TOP := Color(0.66, 0.85, 0.92)
 const DAY_HORIZON := Color(0.91, 0.96, 0.94)
-const DAY_FOG := Color(0.85, 0.92, 0.94)
+const DAY_FOG := Color(0.75, 0.88, 0.92)
 const DAY_SUN := Color(1.0, 0.96, 0.9)
-const DAY_SUN_ENERGY := 1.2
-const DAY_AMBIENT := 0.4
+const DAY_SUN_ENERGY := 1.5
+const DAY_AMBIENT := 0.5
 
 # Sunset palette
 const SUNSET_SKY_TOP := Color(0.4, 0.35, 0.55)
 const SUNSET_HORIZON := Color(0.95, 0.6, 0.4)
-const SUNSET_FOG := Color(0.85, 0.65, 0.5)
+const SUNSET_FOG := Color(0.90, 0.60, 0.40)
 const SUNSET_SUN := Color(1.0, 0.7, 0.4)
 const SUNSET_SUN_ENERGY := 0.9
 
 # Night palette
 const NIGHT_SKY_TOP := Color(0.08, 0.1, 0.2)
 const NIGHT_HORIZON := Color(0.12, 0.15, 0.25)
-const NIGHT_FOG := Color(0.1, 0.12, 0.2)
+const NIGHT_FOG := Color(0.06, 0.08, 0.18)
 const NIGHT_SUN := Color(0.6, 0.7, 0.9)
-const NIGHT_SUN_ENERGY := 0.15
-const NIGHT_AMBIENT := 0.1
+const NIGHT_SUN_ENERGY := 0.08
+const NIGHT_AMBIENT := 0.06
 
 func _ready() -> void:
 	player.global_position = Vector3(0, terrain.get_height_at(0, 0) + 3.0, 0)
