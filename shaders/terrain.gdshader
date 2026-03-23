@@ -81,10 +81,10 @@ void fragment() {
 	float h = v_height;
 
 	// Base colors
-	vec3 shore = vec3(0.91, 0.86, 0.78);
-	vec3 grass_low = vec3(0.55, 0.75, 0.62);
-	vec3 grass_high = vec3(0.77, 0.90, 0.82);
-	vec3 rock = vec3(0.60, 0.60, 0.54);
+	vec3 shore = vec3(0.93, 0.84, 0.72);
+	vec3 grass_low = vec3(0.45, 0.82, 0.55);
+	vec3 grass_high = vec3(0.72, 0.95, 0.78);
+	vec3 rock = vec3(0.55, 0.55, 0.48);
 
 	// Grass: mint gradient by height
 	vec3 grass = mix(grass_low, grass_high, smoothstep(2.0, 10.0, h));
@@ -111,6 +111,7 @@ void fragment() {
 void light() {
 	// Cel-shading: quantize into 3 discrete light bands
 	float NdotL = max(dot(NORMAL, LIGHT), 0.0);
-	float cel = floor(NdotL * 3.0 + 0.5) / 3.0;
+	float cel = floor(NdotL * 3.0 + 0.3) / 3.0;
+	cel = cel * cel;
 	DIFFUSE_LIGHT += ATTENUATION * LIGHT_COLOR * cel;
 }
