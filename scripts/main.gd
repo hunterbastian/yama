@@ -155,6 +155,11 @@ func _process(delta: float) -> void:
 	# Scatter — day/night sync
 	scatter.update_day_factor(day_factor)
 
+	# Grass — player position for push-away
+	var grass_mat: ShaderMaterial = scatter.get_node("GrassMesh").material_override
+	if grass_mat:
+		grass_mat.set_shader_parameter("player_xz", Vector2(player.global_position.x, player.global_position.z))
+
 	# Sun light
 	var sun_color := NIGHT_SUN.lerp(DAY_SUN, day_factor)
 	sun_color = sun_color.lerp(SUNSET_SUN, sunset_factor * 0.8)
