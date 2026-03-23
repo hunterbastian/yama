@@ -21,6 +21,7 @@ const WAVE_SPEEDS: Array[float] = [1.0, 1.3, 0.9, 1.5]
 
 var _water_base_y := 0.0
 var _game_time := 0.0
+var _underwater_blend := 0.0
 
 func _water_height_at(x: float, z: float) -> float:
 	var h := _water_base_y
@@ -107,6 +108,31 @@ func _process(delta: float) -> void:
 	var fog_color := NIGHT_FOG.lerp(DAY_FOG, day_factor)
 	fog_color = fog_color.lerp(SUNSET_FOG, sunset_factor * 0.7)
 	env.environment.fog_light_color = fog_color
+
+	# Underwater detection
+	var cam_pos: Vector3 = $Player/CameraPivot/Camera3D.global_position
+	var cam_water_y: float = _water_height_at(cam_pos.x, cam_pos.z)
+	var target_blend := 1.0 if cam_pos.y < cam_water_y else 0.0
+	_underwater_blend = lerpf(_underwater_blend, target_blend, 1.0 - exp(-delta * 8.0))
+
+	# Underwater fog/ambient override
+	if _underwater_blend > 0.01:
+		var underwater_fog := Color(0.05, 0.18, 0.25)
+		fog_color = fog_color.lerp(underwater_fog, _underwater_blend)
+		env.environment.fog_light_color = fog_color
+		env.environment.fog_density = lerpf(0.003, 0.05, _underwater_blend)
+		var underwater_ambient := Color(0.15, 0.35, 0.45)
+		env.environment.ambient_light_color = Color.WHITE.lerp(underwater_ambient, _underwater_blend)
+	else:
+		env.environment.fog_density = 0.003
+		env.environment.ambient_light_color = Color.WHITE
+
+	# Caustic uniform on terrain shader
+	var terrain_mesh: MeshInstance3D = terrain.get_node("MeshInstance3D")
+	var terrain_mat: ShaderMaterial = terrain_mesh.material_override
+	if terrain_mat:
+		terrain_mat.set_shader_parameter("caustic_strength", _underwater_blend)
+		terrain_mat.set_shader_parameter("water_y_uniform", _water_base_y)
 
 	# Volumetric fog plane — sync color with environment fog
 	var fog_mat: ShaderMaterial = fog_mesh.material_override

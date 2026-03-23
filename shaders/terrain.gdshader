@@ -6,6 +6,8 @@ uniform float noise_scale : hint_range(0.01, 0.2) = 0.05;
 uniform float island_radius : hint_range(10.0, 100.0) = 55.0;
 uniform float meadow_radius : hint_range(0.0, 40.0) = 15.0;
 uniform float meadow_transition : hint_range(1.0, 20.0) = 10.0;
+uniform float caustic_strength : hint_range(0.0, 1.0) = 0.0;
+uniform float water_y_uniform = -10.0;
 
 varying float v_height;
 varying vec3 v_world_normal;
@@ -38,6 +40,21 @@ float snoise(vec2 v) {
 	g.x = a0.x * x0.x + h.x * x0.y;
 	g.yz = a0.yz * x12.xz + h.yz * x12.yw;
 	return 130.0 * dot(m, g);
+}
+
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float value_noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	float a = hash(i);
+	float b = hash(i + vec2(1.0, 0.0));
+	float c = hash(i + vec2(0.0, 1.0));
+	float d = hash(i + vec2(1.0, 1.0));
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
 float terrain_height(vec2 pos) {
@@ -99,6 +116,13 @@ void fragment() {
 	// Painted variation — noise shifts color slightly so flat areas aren't CG-perfect
 	float variation = snoise(v_world_pos.xz * 0.3) * 0.04;
 	col += vec3(variation, variation * 0.8, variation * 0.6);
+
+	// Underwater caustics
+	if (caustic_strength > 0.0 && v_world_pos.y < water_y_uniform) {
+		float caustic = value_noise(v_world_pos.xz * 2.0 + TIME * vec2(0.3, 0.2));
+		caustic = pow(caustic, 2.0) * 0.4;
+		col += vec3(caustic) * caustic_strength;
+	}
 
 	// Rim light — bright silhouette edges
 	float rim = 1.0 - max(dot(NORMAL, VIEW), 0.0);
