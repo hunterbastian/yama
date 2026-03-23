@@ -1,8 +1,6 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back;
 
-uniform vec4 water_color : source_color = vec4(0.66, 0.85, 0.92, 0.8);
-uniform vec4 deep_color : source_color = vec4(0.35, 0.55, 0.70, 0.95);
 uniform sampler2D depth_texture : hint_depth_texture;
 uniform vec2 player_xz;
 uniform float player_speed : hint_range(0.0, 20.0) = 0.0;
@@ -90,18 +88,50 @@ void fragment() {
 	vec4 ndc = vec4(SCREEN_UV * 2.0 - 1.0, depth_raw, 1.0);
 	vec4 view_pos = INV_PROJECTION_MATRIX * ndc;
 	view_pos.xyz /= view_pos.w;
-	float water_depth = clamp((VERTEX.z - view_pos.z) * 0.15, 0.0, 1.0);
-	ALBEDO = mix(water_color.rgb, deep_color.rgb, water_depth);
-	// Player ripple rings
+	float water_depth = clamp((VERTEX.z - view_pos.z) * 0.4, 0.0, 1.0);
+
+	// Multi-stop depth gradient
+	vec3 shallow = vec3(0.55, 0.85, 0.82);
+	vec3 mid     = vec3(0.30, 0.65, 0.65);
+	vec3 deep    = vec3(0.15, 0.40, 0.50);
+	vec3 abyss   = vec3(0.08, 0.20, 0.30);
+
+	vec3 col = shallow;
+	col = mix(col, mid, smoothstep(0.0, 0.3, water_depth));
+	col = mix(col, deep, smoothstep(0.3, 0.6, water_depth));
+	col = mix(col, abyss, smoothstep(0.6, 1.0, water_depth));
+
+	ALBEDO = col;
+
+	// Whitecap foam — where wave surface is steep
+	float slope = 1.0 - normalize(v_wave_normal).y;
+	float whitecap = smoothstep(0.3, 0.6, slope) * value_noise(
+		(INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xz * 3.0 + TIME * 0.5);
+	ALBEDO += vec3(whitecap * 0.6);
+
+	// Shore foam — animated bands near shore
+	float shore_dist = 1.0 - water_depth;
+	float foam_band1 = smoothstep(0.6, 0.8, shore_dist) *
+		(0.5 + 0.5 * sin(shore_dist * 20.0 - TIME * 2.0));
+	float foam_band2 = smoothstep(0.7, 0.9, shore_dist) *
+		(0.5 + 0.5 * sin(shore_dist * 15.0 - TIME * 1.5 + 1.0));
+	float shore_foam = max(foam_band1, foam_band2) *
+		value_noise((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xz * 5.0);
+	ALBEDO += vec3(shore_foam * 0.5);
+
+	// Player ripple rings (preserved)
 	vec3 world_pos_frag = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	float ripple_val = ripple(world_pos_frag.xz);
 	ALBEDO += vec3(ripple_val * 0.15);
-	// Player foam
+
+	// Player foam (preserved)
 	float foam_val = foam(world_pos_frag.xz);
 	ALBEDO += water_effect_tint.rgb * foam_val * 0.3;
-	// Tint ripples by day/night too
+
+	// Day/night tint (preserved)
 	ALBEDO = mix(ALBEDO, ALBEDO * water_effect_tint.rgb, 0.2);
-	ALPHA = mix(water_color.a, deep_color.a, water_depth);
+
+	ALPHA = mix(0.8, 0.95, water_depth);
 	METALLIC = 0.1;
 	ROUGHNESS = 0.05;
 	SPECULAR = 0.8;
