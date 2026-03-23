@@ -9,7 +9,7 @@ Ghibli-style island explorer. Procedural floating island with day/night cycle, v
 ## Architecture
 
 ### Scenes
-- `scenes/main.tscn` — root scene: terrain, player, water, fog, scatter (trees/rocks), sun, environment
+- `scenes/main.tscn` — root scene: terrain, player, water, fog, scatter (trees/rocks/grass), sun, environment
 - `scenes/player.tscn` — CharacterBody3D with capsule model, walk animation, camera pivot, splash particles, wet shader legs
 - `scenes/terrain.tscn` — subdivided PlaneMesh displaced by terrain shader
 - `scenes/water.tscn` — transparent water plane with depth-based shore blending
@@ -18,11 +18,11 @@ Ghibli-style island explorer. Procedural floating island with day/night cycle, v
 - `scenes/rock.tscn` — rock mesh reference (squished sphere), not instantiated
 
 ### Scripts
-- `scripts/main.gd` — day/night cycle (palette blending), fog sync, terrain regeneration (R key), water shader sync (ripples, foam, day/night tint), CPU wave mirror, underwater detection, scatter sync (day/night, regeneration)
+- `scripts/main.gd` — day/night cycle (palette blending), fog sync, terrain regeneration (R key), water shader sync (ripples, foam, day/night tint), CPU wave mirror, underwater detection, scatter sync (day/night, regeneration), grass player_xz sync
 - `scripts/player.gd` — WASD + sprint + jump, coyote time, apex float, momentum acceleration, procedural walk animation, wading state (depth tiers, speed scaling, jump disable), splash particles, wet timer
 - `scripts/camera.gd` — 3rd person orbit, mouse look, terrain collision avoidance, camera bob, sprint sway, landing impact dip
 - `scripts/terrain.gd` — CPU heightmap mirror (must match shader exactly), HeightMapShape3D collision
-- `scripts/scatter.gd` — noise-based tree/rock placement via MultiMeshInstance3D, collision spawning, day/night sync
+- `scripts/scatter.gd` — noise-based tree/rock/grass placement via MultiMeshInstance3D, collision spawning, grass density thinning, day/night sync
 
 ### Shaders
 - `shaders/terrain.gdshader` — simplex noise (3 octaves), island falloff, meadow mask, vibrant palette, cel-shading (3 bands, squared contrast), rim lighting, underwater caustic patterns
@@ -30,6 +30,7 @@ Ghibli-style island explorer. Procedural floating island with day/night cycle, v
 - `shaders/fog.gdshader` — FBM noise (4 octaves), dual-layer scrolling, height-based density, depth soft edges
 - `shaders/character_wet.gdshader` — wet darkening below water line for leg meshes, dry persistence timer
 - `shaders/foliage.gdshader` — cel-shaded foliage with day/night darkening, shared by trees and rocks
+- `shaders/grass.gdshader` — wind-swaying grass blades with player push-away, cel-shading, day/night
 
 ### Key patterns
 - **CPU-GPU heightmap mirror**: terrain.gd `_sample_height()` must match `terrain_height()` in the shader exactly (same octaves, same offsets, same seed approach)
@@ -38,6 +39,7 @@ Ghibli-style island explorer. Procedural floating island with day/night cycle, v
 - **CPU-GPU wave mirror**: main.gd `_water_height_at()` must match `water.gdshader` Gerstner parameters exactly (same dirs, amps, freqs, speeds). Updates `player.water_y` per-frame for dynamic wading
 - **Wading detection**: player.gd compares `global_position.y` against `water_y` (updated per-frame by main.gd via Gerstner evaluation). When rivers/lakes are added, swap to Area3D volumes — shader uniforms stay the same
 - **Scatter placement**: scatter.gd uses noise masks + terrain filters (height, slope, distance) to place objects. Seed derived from terrain seed for deterministic regeneration. MultiMeshInstance3D for rendering, separate StaticBody3D children for collision
+- **Grass density**: scatter.gd places grass on a 1.5-unit grid with noise thinning beyond meadow radius. Dense in meadow center, sparse on lower slopes, none on mountains or underwater
 
 ## Verification
 Open in Godot 4.6 and run from editor. Headless check: `godot --headless --quit` (verifies project loads without errors). No CLI build commands.
