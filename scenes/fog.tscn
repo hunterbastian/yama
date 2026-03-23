@@ -20,6 +20,6 @@ subdivide_width = 1
 subdivide_depth = 1
 
 [node name="Fog" type="MeshInstance3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.0, 0)
 mesh = SubResource("FogMesh")
 material_override = SubResource("FogMat")

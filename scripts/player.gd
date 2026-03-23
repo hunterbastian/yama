@@ -58,7 +58,7 @@ func _physics_process(delta: float) -> void:
 	right.y = 0.0
 	right = right.normalized()
 
-	var wish_dir := (forward * -input_dir.y + right * input_dir.x).normalized() if input_dir.length() > 0.1 else Vector3.ZERO
+	var wish_dir := (forward * input_dir.y + right * input_dir.x).normalized() if input_dir.length() > 0.1 else Vector3.ZERO
 	is_sprinting = Input.is_action_pressed("sprint")
 	var speed := move_speed * (sprint_multiplier if is_sprinting else 1.0)
 
