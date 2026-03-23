@@ -9,6 +9,9 @@ extends Node3D
 
 var _yaw := 0.0
 var _pitch := deg_to_rad(15.0)
+var _bob_time := 0.0
+var _bob_amplitude := 0.0
+var _landing_dip := 0.0
 
 @onready var camera: Camera3D = $Camera3D
 
@@ -25,7 +28,31 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	rotation.y = _yaw
-	var offset := Vector3(0, height, distance)
+
+	# Get player state
+	var player := get_parent() as CharacterBody3D
+	var h_speed := Vector2(player.velocity.x, player.velocity.z).length()
+
+	# Camera bob — own timer to avoid snap on idle
+	var target_amp := 0.08 if player.is_sprinting else 0.04 if h_speed > 0.5 else 0.0
+	_bob_amplitude = lerpf(_bob_amplitude, target_amp, 1.0 - exp(-delta * 8.0))
+	if h_speed > 0.5 and player.is_on_floor():
+		_bob_time += delta * (8.0 if player.is_sprinting else 5.0)
+	var bob_y := sin(_bob_time * 2.0) * _bob_amplitude
+	var bob_x := sin(_bob_time) * _bob_amplitude * 0.5
+
+	# Landing impact dip
+	if player.is_on_floor() and player._prev_velocity_y < -3.0:
+		var impact := clampf(absf(player._prev_velocity_y) / 15.0, 0.0, 1.0)
+		_landing_dip = impact * 0.3
+	_landing_dip = lerpf(_landing_dip, 0.0, 1.0 - exp(-delta * 10.0))
+
+	# Sprint sway (roll)
+	var target_roll := sin(_bob_time) * deg_to_rad(2.0) if player.is_sprinting and h_speed > 0.5 else 0.0
+	camera.rotation.z = lerpf(camera.rotation.z, target_roll, 8.0 * delta)
+
+	# Camera position with bob and landing dip baked into target BEFORE lerp
+	var offset := Vector3(bob_x, height + bob_y - _landing_dip, distance)
 	offset = offset.rotated(Vector3.RIGHT, -_pitch)
 	var target_pos := offset
 	camera.position = camera.position.lerp(target_pos, follow_speed * delta)
