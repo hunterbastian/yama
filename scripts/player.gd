@@ -4,7 +4,7 @@ extends CharacterBody3D
 @export var sprint_multiplier := 1.5
 @export var jump_velocity := 8.0
 @export var gravity := 20.0
-@export var acceleration := 12.0
+@export var acceleration := 8.0
 @export var friction := 10.0
 @export var rotation_speed := 10.0
 
@@ -35,6 +35,9 @@ var _prev_walk_sin := 0.0
 var _wet_timer := 0.0
 const WET_DRY_TIME := 3.0
 
+var is_sprinting := false
+var _prev_velocity_y := 0.0
+
 func _ready() -> void:
 	left_leg.set_surface_override_material(0, left_leg.get_surface_override_material(0).duplicate())
 	right_leg.set_surface_override_material(0, right_leg.get_surface_override_material(0).duplicate())
@@ -56,8 +59,8 @@ func _physics_process(delta: float) -> void:
 	right = right.normalized()
 
 	var wish_dir := (forward * -input_dir.y + right * input_dir.x).normalized() if input_dir.length() > 0.1 else Vector3.ZERO
-	var sprinting := Input.is_action_pressed("sprint")
-	var speed := move_speed * (sprint_multiplier if sprinting else 1.0)
+	is_sprinting = Input.is_action_pressed("sprint")
+	var speed := move_speed * (sprint_multiplier if is_sprinting else 1.0)
 
 	# Wading slowdown
 	water_depth = water_y - global_position.y
@@ -72,16 +75,18 @@ func _physics_process(delta: float) -> void:
 			wade_mult = 0.85
 		speed *= wade_mult
 
-	# --- Horizontal movement ---
+	# --- Horizontal movement (exponential ease-in for momentum) ---
+	var target_vel := wish_dir * speed
 	if wish_dir.length() > 0.0:
-		velocity.x = move_toward(velocity.x, wish_dir.x * speed, acceleration * delta * speed)
-		velocity.z = move_toward(velocity.z, wish_dir.z * speed, acceleration * delta * speed)
-		# Rotate model to face movement direction (not the body — that would spin the camera)
+		var accel_weight := 1.0 - exp(-acceleration * 0.5 * delta)
+		velocity.x = lerpf(velocity.x, target_vel.x, accel_weight)
+		velocity.z = lerpf(velocity.z, target_vel.z, accel_weight)
+		# Rotate model to face movement direction
 		var target_angle := atan2(wish_dir.x, wish_dir.z)
 		model.rotation.y = lerp_angle(model.rotation.y, target_angle, rotation_speed * delta)
 	else:
-		velocity.x = move_toward(velocity.x, 0.0, friction * delta * speed)
-		velocity.z = move_toward(velocity.z, 0.0, friction * delta * speed)
+		velocity.x = move_toward(velocity.x, 0.0, friction * delta * move_speed)
+		velocity.z = move_toward(velocity.z, 0.0, friction * delta * move_speed)
 
 	# --- Gravity with apex float ---
 	if not is_on_floor():
@@ -96,12 +101,13 @@ func _physics_process(delta: float) -> void:
 		velocity.y = jump_velocity
 		_coyote_timer = 0.0
 
+	_prev_velocity_y = velocity.y
 	move_and_slide()
 
 	# --- Walk animation ---
 	var h_speed := Vector2(velocity.x, velocity.z).length()
 	if h_speed > 0.5 and is_on_floor():
-		var anim_speed := 8.0 if sprinting else 5.0
+		var anim_speed := 8.0 if is_sprinting else 5.0
 		_walk_time += delta * anim_speed
 		var swing := sin(_walk_time) * 0.4
 		# Legs swing forward/backward
