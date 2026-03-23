@@ -4,22 +4,47 @@ render_mode blend_mix, depth_draw_opaque, cull_back;
 uniform vec4 water_color : source_color = vec4(0.66, 0.85, 0.92, 0.8);
 uniform vec4 deep_color : source_color = vec4(0.35, 0.55, 0.70, 0.95);
 uniform sampler2D depth_texture : hint_depth_texture;
-uniform float wave_speed : hint_range(0.0, 2.0) = 0.4;
-uniform float wave_height : hint_range(0.0, 1.0) = 0.03;
 uniform vec2 player_xz;
 uniform float player_speed : hint_range(0.0, 20.0) = 0.0;
 uniform float player_speed_smooth : hint_range(0.0, 20.0) = 0.0;
 uniform vec4 water_effect_tint : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 
+// Gerstner wave parameters — must match CPU _water_height_at() exactly
+const int WAVE_COUNT = 4;
+const vec2 WAVE_DIR[4] = {vec2(1.0, 0.0), vec2(0.7, 0.7), vec2(0.3, 1.0), vec2(-0.5, 0.8)};
+const float WAVE_AMP[4] = {0.35, 0.20, 0.15, 0.10};
+const float WAVE_FREQ[4] = {0.8, 1.2, 1.8, 2.5};
+const float WAVE_Q[4] = {0.4, 0.3, 0.3, 0.2};
+const float WAVE_SPEED[4] = {1.0, 1.3, 0.9, 1.5};
+
+varying vec3 v_wave_normal;
+
 void vertex() {
-	float wave = sin(VERTEX.x * 0.5 + TIME * wave_speed) * cos(VERTEX.z * 0.3 + TIME * wave_speed * 0.7);
-	VERTEX.y += wave * wave_height;
-	float eps = 0.5;
-	float hL = sin((VERTEX.x - eps) * 0.5 + TIME * wave_speed) * cos(VERTEX.z * 0.3 + TIME * wave_speed * 0.7) * wave_height;
-	float hR = sin((VERTEX.x + eps) * 0.5 + TIME * wave_speed) * cos(VERTEX.z * 0.3 + TIME * wave_speed * 0.7) * wave_height;
-	float hD = sin(VERTEX.x * 0.5 + TIME * wave_speed) * cos((VERTEX.z - eps) * 0.3 + TIME * wave_speed * 0.7) * wave_height;
-	float hU = sin(VERTEX.x * 0.5 + TIME * wave_speed) * cos((VERTEX.z + eps) * 0.3 + TIME * wave_speed * 0.7) * wave_height;
-	NORMAL = normalize(vec3(hL - hR, 2.0 * eps, hD - hU));
+	vec3 world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	vec3 displaced = world_pos;
+	vec3 wave_normal = vec3(0.0, 1.0, 0.0);
+
+	for (int i = 0; i < WAVE_COUNT; i++) {
+		vec2 dir = normalize(WAVE_DIR[i]);
+		float phase = WAVE_FREQ[i] * dot(dir, world_pos.xz) + TIME * WAVE_SPEED[i];
+		float c = cos(phase);
+		float s = sin(phase);
+
+		// Gerstner displacement
+		displaced.x += WAVE_Q[i] * WAVE_AMP[i] * dir.x * c;
+		displaced.z += WAVE_Q[i] * WAVE_AMP[i] * dir.y * c;
+		displaced.y += WAVE_AMP[i] * s;
+
+		// Analytical Gerstner normal
+		wave_normal.x -= dir.x * WAVE_FREQ[i] * WAVE_AMP[i] * c;
+		wave_normal.z -= dir.y * WAVE_FREQ[i] * WAVE_AMP[i] * c;
+		wave_normal.y -= WAVE_Q[i] * WAVE_FREQ[i] * WAVE_AMP[i] * s;
+	}
+
+	// Apply displacement in local space
+	VERTEX = (inverse(MODEL_MATRIX) * vec4(displaced, 1.0)).xyz;
+	NORMAL = normalize(wave_normal);
+	v_wave_normal = wave_normal;
 }
 
 float ripple(vec2 frag_xz) {
