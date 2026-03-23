@@ -20,7 +20,7 @@ Ghibli-style island explorer. Procedural floating island with day/night cycle, v
 ### Scripts
 - `scripts/main.gd` — day/night cycle (palette blending), fog sync, terrain regeneration (R key), water shader sync (ripples, foam, day/night tint), CPU wave mirror, underwater detection, scatter sync (day/night, regeneration), grass player_xz sync
 - `scripts/player.gd` — WASD + sprint + jump, coyote time, apex float, momentum acceleration, procedural walk animation, wading state (depth tiers, speed scaling, jump disable), splash particles, wet timer
-- `scripts/camera.gd` — 3rd person orbit, mouse look, terrain collision avoidance, camera bob, sprint sway, landing impact dip
+- `scripts/camera.gd` — first/third person toggle (V key), mouse look, terrain collision avoidance, camera bob, sprint sway, landing impact dip
 - `scripts/terrain.gd` — CPU heightmap mirror (must match shader exactly), HeightMapShape3D collision
 - `scripts/scatter.gd` — noise-based tree/rock/grass placement via MultiMeshInstance3D, collision spawning, grass density thinning, day/night sync
 
@@ -48,6 +48,7 @@ Open in Godot 4.6 and run from editor. Headless check: `godot --headless --quit`
 - WASD: move
 - Space: jump
 - Left Ctrl: sprint
+- V: toggle first/third person
 - R: regenerate terrain
 - Mouse: camera orbit
 - Escape: release mouse
