@@ -13,6 +13,23 @@ extends Node3D
 var _time_of_day := 0.25  # Start at sunrise (0=midnight, 0.25=sunrise, 0.5=noon, 0.75=sunset)
 var _player_speed_smooth := 0.0
 
+# Gerstner wave parameters — must match water.gdshader exactly
+const WAVE_DIRS: Array[Vector2] = [Vector2(1.0, 0.0), Vector2(0.7, 0.7), Vector2(0.3, 1.0), Vector2(-0.5, 0.8)]
+const WAVE_AMPS: Array[float] = [0.35, 0.20, 0.15, 0.10]
+const WAVE_FREQS: Array[float] = [0.8, 1.2, 1.8, 2.5]
+const WAVE_SPEEDS: Array[float] = [1.0, 1.3, 0.9, 1.5]
+
+var _water_base_y := 0.0
+var _game_time := 0.0
+
+func _water_height_at(x: float, z: float) -> float:
+	var h := _water_base_y
+	for i in WAVE_DIRS.size():
+		var dir := WAVE_DIRS[i].normalized()
+		var phase := WAVE_FREQS[i] * (dir.x * x + dir.y * z) + _game_time * WAVE_SPEEDS[i]
+		h += WAVE_AMPS[i] * sin(phase)
+	return h
+
 # Day palette
 const DAY_SKY_TOP := Color(0.66, 0.85, 0.92)
 const DAY_HORIZON := Color(0.91, 0.96, 0.94)
@@ -38,13 +55,16 @@ const NIGHT_AMBIENT := 0.06
 
 func _ready() -> void:
 	player.global_position = Vector3(0, terrain.get_height_at(0, 0) + 3.0, 0)
-	player.water_y = $Water.global_position.y
+	_water_base_y = $Water.global_position.y
 	scatter.generate(terrain, $Water.global_position.y)
 
 func _process(delta: float) -> void:
 	_time_of_day += delta / cycle_duration
 	if _time_of_day > 1.0:
 		_time_of_day -= 1.0
+
+	_game_time += delta
+	player.water_y = _water_height_at(player.global_position.x, player.global_position.z)
 
 	# Sun rotation — full circle over the cycle
 	var sun_angle := _time_of_day * TAU - PI / 2.0
