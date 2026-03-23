@@ -3,3 +3,5 @@ assets
 screenshots
 .godot
 *.import
+.superpowers/
+*.uid
